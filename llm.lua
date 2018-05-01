@@ -4,6 +4,7 @@ local fs = require("filesystem")
 local LIB_JSON_FILE_NAME = "lib.json"
 local TYPE_LIB = "lib"
 local TYPE_FILE = "file"
+local REPOSITORY_URL = "url"
 local REPOSITORY_GITHUB = "github"
 
 ------------------- env
@@ -98,6 +99,33 @@ function Repository:new(repositoryName)
     return setmetatable(new, Repository_MT)
 end
 
+--------------------- URL repository class ---------------------
+-- pattern: [url]
+-- the filePath may be a file or a directory (direcotries should end with a slash)
+-- warning: may only work with type 'file'
+local UrlRepository = {} -- extends Repository
+local UrlRepository_MT = { __index = UrlRepository }
+local function _parseUrlToLocalPathAndFilename(resourceIdentifier)
+    return resourceIdentifier:match("^(.+)/(.+)$")
+end
+
+function UrlRepository:getOrDownloadFile(resourceIdentifier, _)
+    local localFilePath, fileName = _parseUrlToLocalPathAndFilename(resourceIdentifier)
+    return _getOrDownloadFile(resourceIdentifier, localFilePath, fileName)
+end
+
+function UrlRepository:getLocalFilePath(resourceIdentifier, _)
+    local localFilePath, fileName = _parseUrlToLocalPathAndFilename(resourceIdentifier)
+    return string.format("%s/%s/%s", env.LIB_ROOT_DIR, localFilePath, fileName)
+end
+
+-- constructor
+function UrlRepository:new(repositoryName)
+    local new = Repository:new(repositoryName)
+
+    return setmetatable(new, UrlRepository_MT)
+end
+
 --------------------- github repository class ---------------------
 -- pattern: [user]:[repository]:[branch]:[filePath]
 -- the filePath may be a file or a directory (direcotries should end with a slash)
@@ -105,7 +133,7 @@ end
 -- github URL pattern
 -- https://github.com/[user]/[repository]/raw/[branch]/[filename]
 local GithubRepository = {} -- extends Repository
-local GithubRepository_MT = {__index = GithubRepository}
+local GithubRepository_MT = { __index = GithubRepository }
 
 local function _parseGithubResourceIdentifier(resourceIdentifier, file)
     local user, repository, branch, filePath = resourceIdentifier:match("(.+):(.+):(.+):(.+)")
@@ -136,9 +164,10 @@ function GithubRepository:new(repositoryName)
 end
 
 --------------------- factory ---------------------
-
 local function _createRepository(repositoryName)
-    if repositoryName == REPOSITORY_GITHUB then
+    if repositoryName == REPOSITORY_URL then
+        return UrlRepository:new(repositoryName)
+    elseif repositoryName == REPOSITORY_GITHUB then
         return GithubRepository:new(repositoryName)
     else
         print("unsupported repository: " .. repositoryName)
@@ -146,7 +175,6 @@ local function _createRepository(repositoryName)
 end
 
 --------------------- llm ---------------------
-
 local function _installLib(llm, alias, dependencyDescriptor, repository, resourceIdentifier)
     return function()
         local libJson = llm.dependencyLibJsonCache[dependencyDescriptor]
@@ -214,7 +242,7 @@ local function _installDependencies(dependencies)
 end
 
 local function _appendDotLuaIfNotPresent(script)
-    if string.sub(script,-4) == ".lua" then
+    if string.sub(script, -4) == ".lua" then
         return script
     else
         return script .. ".lua"
@@ -223,7 +251,7 @@ end
 
 --------------------- llm class ---------------------
 local llm = {}
-local LLM_MT = {__index = llm}
+local LLM_MT = { __index = llm }
 llm.libJson = nil
 llm.dependencyLibJsonCache = {}
 
@@ -270,7 +298,7 @@ function llm:clean()
     os.execute("rm -rf " .. env.LIB_ROOT_DIR)
 end
 
------------------------   factory -----------------------
+----------------------- factory -----------------------
 function llm:new()
     local new = {}
     local instance = setmetatable(new, LLM_MT)

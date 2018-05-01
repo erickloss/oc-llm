@@ -4,13 +4,14 @@ local function getOrInitDefaultEnv(key, default)
     end
     return os.getenv(key)
 end
-
-
 local llmVersion = getOrInitDefaultEnv("LLM.VERSION", "master")
+local baseUrl = "https://raw.githubusercontent.com/erickloss/oc-llm/" .. llmVersion
 
-local baseUrl = "https://raw.githubusercontent.com/erickloss/oc-llm"
-local versionBaseUrl = baseUrl .. ""
+-- libraries
+os.execute("wget -f " .. baseUrl .. "/llm.lua /lib/llm.lua")
+os.execute("wget -f " .. baseUrl .. "/lib/json.lua /lib/json.lua")
 
-local llmUrl =
+-- binaries
+os.execute("wget -f " .. baseUrl .. "/bin/llm-cli.lua /bin/llm.lua")
 
-os.execute("wget -f " .. llmUrl .. " /lib/llm.lua")
+print("Lua Library Manager downloaded successfully")

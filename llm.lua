@@ -106,7 +106,9 @@ end
 local UrlRepository = {} -- extends Repository
 local UrlRepository_MT = { __index = UrlRepository }
 local function _parseUrlToLocalPathAndFilename(resourceIdentifier)
-    return resourceIdentifier:match("^(.+)/(.+)$")
+    local path, file = resourceIdentifier:match("^(.+)/(.+)$")
+    path = path:gsub("/", "_")
+    return path, file
 end
 
 function UrlRepository:getOrDownloadFile(resourceIdentifier, _)

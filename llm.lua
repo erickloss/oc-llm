@@ -70,6 +70,13 @@ local function _getOrDownloadFile(sourceUrl, targetDirectory, targetFileName)
     return pathAndName
 end
 
+local function _appendDotLuaIfNotPresent(script)
+    if string.sub(script, -4) == ".lua" then
+        return script
+    else
+        return script .. ".lua"
+    end
+end
 
 ------- lib.json -------
 -- library descriptor pattern: [type]@[repository]#[resourceIdentifier]
@@ -108,6 +115,11 @@ local UrlRepository_MT = { __index = UrlRepository }
 local function _parseUrlToLocalPathAndFilename(resourceIdentifier)
     local path, file = resourceIdentifier:match("^(.+)/(.+)$")
     path = path:gsub("/", "_")
+    path = path:gsub(":", "_")
+    path = path:gsub("#", "_")
+    path = path:gsub("?", "_")
+    path = path:gsub("&", "_")
+    file = _appendDotLuaIfNotPresent(file)
     return path, file
 end
 
@@ -240,14 +252,6 @@ local function _installDependencies(dependencies)
         else
             print(installer)
         end
-    end
-end
-
-local function _appendDotLuaIfNotPresent(script)
-    if string.sub(script, -4) == ".lua" then
-        return script
-    else
-        return script .. ".lua"
     end
 end
 

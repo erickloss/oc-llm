@@ -78,6 +78,16 @@ local function _appendDotLuaIfNotPresent(script)
     end
 end
 
+local function _escapeRegexString(s)
+    local specialChars = { "(", ")", ".", "+", "-", "*", "?", "[", "^", "$" }
+    s = s:gsub("%%", "%%%%")
+    for _,v in pairs(specialChars) do
+        s = s:gsub("%" .. v, "%%" .. v)
+    end
+    return s
+end
+
+
 ------- lib.json -------
 -- library descriptor pattern: [type]@[repository]#[resourceIdentifier]
 -- supported types: file, lib
@@ -119,6 +129,7 @@ local function _parseUrlToLocalPathAndFilename(resourceIdentifier)
     path = path:gsub("#", "_")
     path = path:gsub("?", "_")
     path = path:gsub("&", "_")
+    path = "url/" .. path
     file = _appendDotLuaIfNotPresent(file)
     return path, file
 end
@@ -151,11 +162,19 @@ local GithubRepository_MT = { __index = GithubRepository }
 
 local function _parseGithubResourceIdentifier(resourceIdentifier, file)
     local user, repository, branch, filePath = resourceIdentifier:match("(.+):(.+):(.+):(.+)")
+    if filePath == "/" then
+        filePath = ""
+    end
     if file ~= nil then
         filePath = filePath .. file
     end
     local githubPath, githubFileName = filePath:match("^(.+)/(.+)$")
-    local localFilePath = string.format("github/%s/%s/%s/%s", user, repository, branch, githubPath)
+    if githubFileName == nil then
+        githubFileName = filePath
+    end
+    local localFileBasePath = string.format("github/%s/%s/%s", user, repository, branch)
+    local localFilePath = localFileBasePath .. (githubPath ~= nil and "/" .. githubPath or "")
+
     return user, repository, branch, filePath, githubFileName, localFilePath
 end
 
@@ -193,7 +212,6 @@ local function _installLib(llm, alias, dependencyDescriptor, repository, resourc
     return function()
         local libJson = llm.dependencyLibJsonCache[dependencyDescriptor]
         print("installing library: " .. libJson.name .. " alias " .. alias .. " (from: " .. dependencyDescriptor .. ")")
-        local baseResourceIdentifier
         for _, localFilePath in pairs(libJson.files) do
             print("  - installing file: " .. localFilePath)
             repository:getOrDownloadFile(resourceIdentifier, localFilePath)
@@ -284,6 +302,27 @@ function llm:require(alias)
         localRequiredFilePath = _appendDotLuaIfNotPresent(localRequiredFilePath)
         print("require: " .. localRequiredFilePath)
         return dofile(localRequiredFilePath)
+    end
+end
+
+function llm:requireLocal(file)
+    local stackIndex = 2
+    local scriptPath
+    repeat
+        local stackItem = debug.getinfo(stackIndex, "S")
+        if stackItem ~= nil then
+            scriptPath = stackItem.source:sub(2):match("(" .. _escapeRegexString(env.LIB_ROOT_DIR) .. ".*/)")
+        end
+        stackIndex = stackIndex + 1
+    until stackItem == nil or scriptPath ~= nil
+    if scriptPath == nil then
+        print("Could not find current script path for local include")
+        debug.traceback()
+        return nil
+    else
+        local fullPathToLib = _appendDotLuaIfNotPresent(scriptPath .. file)
+        print("require local:" .. fullPathToLib)
+        return dofile(fullPathToLib)
     end
 end
 
